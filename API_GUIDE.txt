@@ -1,0 +1,241 @@
+================================================================
+  GUÍA DE USO — API Auditor de Sesgo en CVs
+  Base URL: http://localhost:5000
+================================================================
+
+ANTES DE EMPEZAR
+----------------
+El backend debe estar corriendo. Para iniciarlo:
+
+  cd cv-sesgo-auditor/
+  source venv/bin/activate
+  cd api && python app.py
+
+Una vez iniciado verás:
+  * Running on http://127.0.0.1:5000
+
+Puedes consumir la API con fetch(), axios, Postman, curl, etc.
+
+
+================================================================
+  ENDPOINT 1 — Analizar un CV individual
+================================================================
+
+  Método  : POST
+  URL     : http://localhost:5000/api/v1/analizar
+  Headers : Content-Type: application/json
+
+CAMPO "modelo" (obligatorio elegir uno):
+  "justo"    → modelo sin sesgo (recomendado para mostrar al usuario)
+  "sesgado"  → modelo con sesgo (para comparar / demo)
+
+BODY — todos los campos disponibles:
+------------------------------------------------------------------
+{
+  "modelo"          : "justo",          <- "justo" o "sesgado"
+
+  "tipo_trabajo"    : "Private",        <- Private | Self-emp-not-inc |
+                                           Self-emp-inc | Federal-gov |
+                                           Local-gov | State-gov | Without-pay
+
+  "educacion"       : "Bachelors",      <- Bachelors | Masters | Doctorate |
+                                           HS-grad | Some-college | Assoc-voc |
+                                           Assoc-acdm | Prof-school | 11th |
+                                           10th | 9th | 7th-8th | 5th-6th |
+                                           1st-4th | Preschool | 12th
+
+  "educacion_num"   : 13,               <- número entero 1–16
+                                           (13 = Bachelors, 14 = Masters,
+                                            16 = Doctorate, 9 = HS-grad)
+
+  "estado_civil"    : "Married-civ-spouse",
+                                        <- Married-civ-spouse | Never-married |
+                                           Divorced | Separated | Widowed |
+                                           Married-spouse-absent | Married-AF-spouse
+
+  "ocupacion"       : "Prof-specialty", <- Tech-support | Craft-repair |
+                                           Other-service | Sales | Exec-managerial |
+                                           Prof-specialty | Handlers-cleaners |
+                                           Machine-op-inspct | Adm-clerical |
+                                           Farming-fishing | Transport-moving |
+                                           Priv-house-serv | Protective-serv |
+                                           Armed-Forces
+
+  "sexo"            : "Female",         <- Male | Female
+
+  "ganancia_capital": 0,                <- número entero >= 0
+  "perdida_capital" : 0,                <- número entero >= 0
+  "horas_semana"    : 40,               <- número entero (típico: 20–80)
+  "pais_origen"     : "United-States",  <- nombre del país en inglés
+
+  "edad"            : 35,               <- número entero (solo lo usa el modelo sesgado)
+  "raza"            : "White",          <- White | Black | Asian-Pac-Islander |
+                                           Amer-Indian-Eskimo | Other
+                                           (solo lo usa el modelo sesgado)
+  "fnlwgt"          : 200000,           <- peso censal, puedes enviar 200000 por defecto
+  "relacion"        : "Wife"            <- Husband | Wife | Own-child |
+                                           Not-in-family | Other-relative | Unmarried
+                                           (solo lo usa el modelo sesgado)
+}
+------------------------------------------------------------------
+
+CAMPOS MÍNIMOS REQUERIDOS para el modelo "justo":
+  tipo_trabajo, educacion_num, estado_civil, ocupacion,
+  sexo, ganancia_capital, perdida_capital, horas_semana
+
+  Los campos edad, raza, pais_origen, relacion son ignorados
+  por el modelo justo (el modelo no los usa para decidir).
+  Igual puedes enviarlos sin problema — no rompe nada.
+
+RESPUESTA:
+------------------------------------------------------------------
+{
+  "decision"      : "aceptado",    <- "aceptado" o "rechazado"
+  "confianza"     : 0.82,          <- número entre 0 y 1
+  "factores_sesgo": [              <- top 5 variables que más influyeron
+    { "variable": "educacion_num", "impacto": 0.134 },
+    { "variable": "estado_civil",  "impacto": 0.098 },
+    { "variable": "ocupacion",     "impacto": -0.071 },
+    { "variable": "horas_semana",  "impacto": -0.063 },
+    { "variable": "fnlwgt",        "impacto": -0.045 }
+  ]
+}
+------------------------------------------------------------------
+
+impacto positivo  → esa variable SUMÓ puntos para "aceptado"
+impacto negativo  → esa variable RESTÓ puntos (empuja a "rechazado")
+
+
+EJEMPLO con fetch() en JavaScript:
+------------------------------------------------------------------
+const response = await fetch('http://localhost:5000/api/v1/analizar', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    modelo         : 'justo',
+    tipo_trabajo   : 'Private',
+    educacion_num  : 13,
+    estado_civil   : 'Married-civ-spouse',
+    ocupacion      : 'Prof-specialty',
+    sexo           : 'Female',
+    ganancia_capital: 0,
+    perdida_capital : 0,
+    horas_semana   : 40,
+    fnlwgt         : 200000
+  })
+});
+const data = await response.json();
+console.log(data.decision);      // "aceptado"
+console.log(data.confianza);     // 0.82
+console.log(data.factores_sesgo);
+------------------------------------------------------------------
+
+
+================================================================
+  ENDPOINT 2 — Analizar varios CVs en lote
+================================================================
+
+  Método  : POST
+  URL     : http://localhost:5000/api/v1/analizar-lote
+  Headers : Content-Type: application/json
+
+BODY:
+------------------------------------------------------------------
+{
+  "modelo": "justo",       <- "justo" o "sesgado"
+  "cvs": [
+    {
+      "tipo_trabajo"   : "Private",
+      "educacion_num"  : 13,
+      "estado_civil"   : "Married-civ-spouse",
+      "ocupacion"      : "Prof-specialty",
+      "sexo"           : "Female",
+      "ganancia_capital": 0,
+      "perdida_capital" : 0,
+      "horas_semana"   : 40,
+      "fnlwgt"         : 200000
+    },
+    {
+      "tipo_trabajo"   : "Private",
+      "educacion_num"  : 9,
+      "estado_civil"   : "Never-married",
+      "ocupacion"      : "Handlers-cleaners",
+      "sexo"           : "Male",
+      "ganancia_capital": 0,
+      "perdida_capital" : 0,
+      "horas_semana"   : 30,
+      "fnlwgt"         : 200000
+    }
+  ]
+}
+------------------------------------------------------------------
+
+RESPUESTA:
+------------------------------------------------------------------
+{
+  "resultados": [
+    {
+      "decision"      : "aceptado",
+      "confianza"     : 0.75,
+      "factores_sesgo": [ ... ]
+    },
+    {
+      "decision"      : "rechazado",
+      "confianza"     : 0.91,
+      "factores_sesgo": [ ... ]
+    }
+  ],
+  "total"     : 2,
+  "aceptados" : 1,
+  "rechazados": 1
+}
+------------------------------------------------------------------
+
+El orden de "resultados" coincide exactamente con el orden de "cvs".
+
+
+EJEMPLO con fetch() en JavaScript:
+------------------------------------------------------------------
+const response = await fetch('http://localhost:5000/analizar-lote', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    modelo: 'justo',
+    cvs: [ cv1, cv2, cv3 ]   // array de objetos igual al endpoint /analizar
+  })
+});
+const data = await response.json();
+console.log(data.total);      // 3
+console.log(data.aceptados);  // 2
+console.log(data.resultados); // array con la decisión de cada CV
+------------------------------------------------------------------
+
+
+================================================================
+  MANEJO DE ERRORES
+================================================================
+
+Si el body está vacío o mal formado:
+  { "error": "Body JSON requerido" }          HTTP 400
+
+Si falta el campo "cvs" en /analizar-lote:
+  { "error": "Campo 'cvs' requerido" }        HTTP 400
+
+Tip: si una variable no se envía, el modelo usa 0 como valor
+por defecto. Siempre envía al menos los campos mínimos.
+
+
+================================================================
+  COMPARAR MODELOS DESDE EL FRONTEND
+================================================================
+
+Para mostrar la diferencia sesgado vs justo, llama dos veces
+con el mismo CV cambiando solo "modelo":
+
+  POST /analizar  { ..., "modelo": "sesgado" }  → resultado A
+  POST /analizar  { ..., "modelo": "justo"   }  → resultado B
+
+Luego muestra ambas decisiones y factores lado a lado.
+Eso es la demostración central del MVP.
+
+================================================================

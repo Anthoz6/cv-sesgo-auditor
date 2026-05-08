@@ -1,0 +1,12 @@
+.idea/
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.env
+*.pkl
+data/raw/
+data/processed/
+!data/processed/.gitkeep
+!data/raw/.gitkeep
+.ipynb_checkpoints/
