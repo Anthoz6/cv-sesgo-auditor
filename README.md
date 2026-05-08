@@ -41,7 +41,7 @@ cd api && python app.py
 
 ### `POST /analizar`
 ```bash
-curl -X POST http://localhost:5000/analizar \
+curl -X POST http://localhost:5000/api/v1/analizar \
   -H "Content-Type: application/json" \
   -d '{
     "edad": 45, "tipo_trabajo": "Private",
@@ -54,7 +54,7 @@ curl -X POST http://localhost:5000/analizar \
 
 ### `POST /analizar-lote`
 ```bash
-curl -X POST http://localhost:5000/analizar-lote \
+curl -X POST http://localhost:5000/api/v1/analizar-lote \
   -H "Content-Type: application/json" \
   -d '{"cvs": [{...}, {...}], "modelo": "justo"}'
 ```
